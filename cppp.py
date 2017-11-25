@@ -47,7 +47,7 @@ def match_include(line):
     m = INC_RE.match(line)
 
     if m:
-        return m.group(1) if m.group(1) else m.group(2)
+        return (m.group(1) if m.group(1) else m.group(2)).strip()
     else:
         return None
 
