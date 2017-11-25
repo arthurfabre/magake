@@ -72,23 +72,107 @@ MAKEFLAGS+=-r
 .SECONDARY:
 
 #############
+# Settings - Default values
+#############
+
+# Worker function whose output should be eval()'d
+# See set_default
+define _set_default
+ifndef $1
+  $1:=$2
+else ifeq ($(origin $1),default)
+  $1:=$2
+else
+  $1:=$($1)
+endif
+endef
+
+# Set a var to a default value if it isn't defined,
+# or has a default make definition.
+# Every variable will [re]defined as simply expanded.
+#
+# Params:
+# 		1: Variable name
+# 		2: Default value
+define set_default
+$(eval $(call _set_default,$1,$2))
+endef
+
+# Path to source directory
+$(call set_default,SRC_DIR,src/)
+
+# Source file extensions
+$(call set_default,SRC_EXT,c s cpp)
+
+# Path(s) to additional includes
+$(call set_default,INCLUDE_DIRS,)
+
+# Additional symbols to define
+$(call set_default,SYMBOLS,)
+
+# Object directory. A subdirectory will be created per architecture
+$(call set_default,BIN_DIR,bin/)
+
+# OutputName. @ represents the name of the directory containing this makefile
+$(call set_default,OUTPUT_NAME,@.elf)
+
+# Libraries
+$(call set_default,LIBRARIES,)
+
+# CrossCompile options
+$(call set_default,CROSS_COMPILE,)
+
+# C Options. Will be passed to C and C++ compiler
+# TODO - Passed to linker too?
+$(call set_default,C_OPTS,-Wall -O3 -Werror -pedantic)
+
+# ASM compiler to use
+$(call set_default,AS,$(CROSS_COMPILE)gcc -x assembler-with-cpp)
+$(call set_default,AS_OPTS,)
+
+# C Compiler to use
+$(call set_default,CC,$(CROSS_COMPILE)gcc)
+$(call set_default,CC_OPTS,-std=c11)
+
+# C++ Compiler to use
+$(call set_default,CXX,$(CROSS_COMPILE)g++)
+$(call set_default,CXX_OPTS,-std=c++14)
+
+# Objcopy to use
+$(call set_default,OBJCOPY,$(CROSS_COMPILE)objcopy)
+$(call set_default,OBJCOPY_OPTS,)
+
+# Linker to use
+$(call set_default,LD,$(CROSS_COMPILE)g++)
+$(call set_default,LD_OPTS,)
+
+# Partial linker to use
+$(call set_default,PLD,$(CROSS_COMPILE)ld)
+$(call set_default,PLD_OPTS,)
+
+#############
 # Variables
 #############
 
+# Options to generate dependency information. Passed to C and C++ compiler
+# MD: Generate a file with makefile style dependencies along with the object files
+# MP; Generate bogus empty rules for every dependency so that deleting them doesn't break make
+DEPENDS_OPTS=-MD -MP
+
 # Object dir
-OBJDIR:=$(BINDIR)$(shell $(CC) -dumpmachine)/
+OBJ_DIR:=$(BIN_DIR)$(shell $(CC) -dumpmachine)/
 
 # Get the object name from a set of source files
 # Params: 1: List of source files
 define objectify
-$(addprefix $(OBJDIR),$(foreach ext, $(SRC_EXTENSIONS),$(patsubst %.$(ext),%.o,$(filter %.$(ext),$1))))
+$(addprefix $(OBJ_DIR),$(foreach ext, $(SRC_EXT),$(patsubst %.$(ext),%.o,$(filter %.$(ext),$1))))
 endef
 
 # temp variable to store find command syntax 
 FIND_DIRS:=$(foreach ext, $(SRC_EXTENSIONS),-o -name '*.$(ext)')
 
 # Source files
-SOURCES:=$(shell find $(SRCDIR) $(wordlist 2, $(words $(FIND_DIRS)),$(FIND_DIRS))) $(EXTRA_SOURCES)
+SOURCES:=$(shell find $(SRC_DIR) $(wordlist 2, $(words $(FIND_DIRS)),$(FIND_DIRS)))
 
 # Library sub directeries we need to pass to the linker
 LIBSUBDIRS:=
@@ -97,7 +181,8 @@ LIBSUBDIRS:=
 LIB_OBJECTS:=
 
 # Include directories (use isystem to treat the includes as system headers, supressing warnings)
-INCLUDES:=$(addprefix -I,$(INCLUDEDIRS) $(SRCDIR))
+# TODO - Make this a function instead?
+INCLUDES:=$(addprefix -I,$(SRC_DIR))
 
 # Object files
 OBJECTS:=$(call objectify,$(SOURCES))
@@ -109,7 +194,7 @@ DEPENDS:=$(OBJECTS:.o=.d)
 CURDIR_NAME:=$(lastword $(subst /, ,$(CURDIR)))
 
 # Name of the final output files
-OUTPUT_NAME:=$(subst @,$(CURDIR_NAME),$(OUTPUT_NAME))
+OUTPUT:=$(OBJ_DIR)$(subst @,$(CURDIR_NAME),$(OUTPUT_NAME))
 
 ifeq ($(strip $(TYPE)),debug)
   C_OPTS+= -g
@@ -124,18 +209,17 @@ endif
 # Expands to: Lots of junk
 define _lib_src
 # Add lib to lists of things to link
-LIB_OBJECTS+= $(LIB_$1)
+$(OUTPUT): $(LIB_$1)
 
 # Make lib depend on it's object files and header files
-$(LIB_$1): $(call objectify,$(addprefix $1/,$2)) $(addprefix $(OBJDIR)include/$1/,$4)
-
-$(LIB_$1): OBJECTS=$(call objectify,$(addprefix $1/,$2))
+# Header files are order only so they're not linked
+$(LIB_$1): $(call objectify,$(addprefix $1/,$2)) | $(addprefix $(OBJ_DIR)include/$1/,$4)
 
 # Expose private includes only when building lib
 $(LIB_$1): INCLUDES=$(addprefix -I,$1 $(addprefix $1/,$3))
 
 # Define symbols for library build
-$(LIB_$1): C_SYMBOLS=$(addprefix -D,$5)
+$(LIB_$1): SYMBOLS=$(addprefix -D,$5)
 
 # Add fudged headers as OBJ dependency so they're not built before we fudge them
 # Order only is sufficient for clean builds, non-clean builds have real dependency info
@@ -151,7 +235,7 @@ endef
 #
 # Expands to the name of the target generated for the library (which can be used to set target-specific overrides for things like C_FLAGS)
 define lib_src
-$(eval LIB_$1:=$(OBJDIR)$1.lib)$(LIB_$1)$(eval $(call _lib_src,$1,$2,$3,$4,$5))
+$(eval LIB_$1:=$(OBJ_DIR)$1.lib)$(LIB_$1)$(eval $(call _lib_src,$1,$2,$3,$4,$5))
 endef
 
 
@@ -161,10 +245,10 @@ LIBSUBDIRS+= $1/
 
 # Add fudged headers as OBJ dependency so they're not built before we fudge them
 # Order only is sufficient for clean builds, non-clean builds have real dependency info
-$(OBJECTS): | $(OBJDIR)include/$1
+$(OBJECTS): | $(OBJ_DIR)include/$1
 
 # Rule to symlink include dir into the one we actually use
-$(OBJDIR)include/$1: $(wildcard $1/$2*.h) | $$$$(@D)/.dirtag
+$(OBJ_DIR)include/$1: $(wildcard $1/$2*.h) | $$$$(@D)/.dirtag
 	ln -s ../../../../$1/$2 $$@
 endef
 
@@ -191,7 +275,7 @@ endef
 
 # TODO
 # For every lib-dir, include *.mk
-INCLUDES+=$(addprefix -isystem,$(OBJDIR)include/lib)
+INCLUDES+=$(addprefix -isystem,$(OBJ_DIR)include/lib)
 
 #############
 # Debug
@@ -210,46 +294,47 @@ INCLUDES+=$(addprefix -isystem,$(OBJDIR)include/lib)
 #############
 
 # Build a pre-pre-processed header from a source header
-$(OBJDIR)include/%.h: %.h | $$(@D)/.dirtag
+$(OBJ_DIR)include/%.h: %.h | $$(@D)/.dirtag
 	@echo "Preprocessing $< into $@"
-	@./cppp.py $(C_SYMBOLS) $(INCLUDES) $< -o $@
+	@./cppp.py $(SYMBOLS) $(INCLUDES) $< -o $@
 
 # Make an object file from an asm file
-$(OBJDIR)%.o: %.s | $$(@D)/.dirtag
+$(OBJ_DIR)%.o: %.s | $$(@D)/.dirtag
 	@echo "Compiling $< into $@"
 	@$(AS) $(AS_OPTS) -o $@ $<
 
 # Make an object file from a C source file, and generate dependecy information.
-$(OBJDIR)%.o: %.c | $$(@D)/.dirtag
+$(OBJ_DIR)%.o: %.c | $$(@D)/.dirtag
 	@echo "Compiling $< into $@"
-	@$(CC) $(C_OPTS) $(DEPENDS_OPTS) $(CC_OPTS) $(C_SYMBOLS) $(INCLUDES) -c $< -o $@
+	@$(CC) $(C_OPTS) $(DEPENDS_OPTS) $(CC_OPTS) $(SYMBOLS) $(INCLUDES) -c $< -o $@
 
 # Make an object file from a C++ source file, and generate dependecy information.
 # Accept both .cpp and .cc files
-$(OBJDIR)%.o: %.cpp | $$(@D)/.dirtag
+$(OBJ_DIR)%.o: %.cpp | $$(@D)/.dirtag
 	@echo "Compiling $< into $@"
-	@$(CPP) $(C_OPTS) $(DEPENDS_OPTS) $(CPP_OPTS) $(C_SYMBOLS) $(INCLUDES) -c $< -o $@
-$(OBJDIR)%.o: %.cc | $$(@D)/.dirtag
+	@$(CXX) $(C_OPTS) $(DEPENDS_OPTS) $(CXX_OPTS) $(SYMBOLS) $(INCLUDES) -c $< -o $@
+$(OBJ_DIR)%.o: %.cc | $$(@D)/.dirtag
 	@echo "Compiling $< into $@"
-	@$(CPP) $(C_OPTS) $(DEPENDS_OPTS) $(CPP_OPTS) $(C_SYMBOLS) $(INCLUDES) -c $< -o $@
+	@$(CXX) $(C_OPTS) $(DEPENDS_OPTS) $(CXX_OPTS) $(SYMBOLS) $(INCLUDES) -c $< -o $@
 
 # Partial linking hackery. These are really .o's, but it's easier to have a different extension to keep the rules seperate
-$(OBJDIR)%.lib: | $$(@D)/.dirtag
-	@echo "Partially linking $(OBJECTS) into $@"
-	@$(PLD) -r $(OBJECTS) -o $@
+$(OBJ_DIR)%.lib: | $$(@D)/.dirtag
+	@echo "Partially linking $^ into $@"
+	@$(PLD) $(PLD_OPTS) -r $^ -o $@
 
 # Make an elf file from all the objects
-$(OBJDIR)%.elf: $(OBJECTS) $(LIB_OBJECTS)
+$(OBJ_DIR)%.elf: $(OBJECTS)
 	@echo "Linking $^ into $@"
-	@$(LD) $(LD_OPTS) $(addprefix -L,$(LIBSUBDIRS)) $(OBJECTS) $(LIB_OBJECTS) $(addprefix -l,$(LIBRARIES)) -o $@
+	@$(LD) $(LD_OPTS) $(addprefix -L,$(LIBSUBDIRS)) $^ $(addprefix -l,$(LIBRARIES)) -o $@
 
 # Make a hex file from a binary
-$(OBJDIR)%.hex: $(OBJDIR)%.elf
+$(OBJ_DIR)%.hex: $(OBJ_DIR)%.elf
 	@echo "Creating hex $@"
 	@$(OBJCOPY) $(OBJCOPY_OPTS) -O ihex $^ $@
 
 # Build target
-build: $(OBJDIR)$(OUTPUT_NAME)
+# TODO - Get rid of this target
+build: $(OUTPUT)
 
 # Target to create a directory
 %.dirtag:
@@ -259,5 +344,5 @@ build: $(OBJDIR)$(OUTPUT_NAME)
 # Clean target
 .PHONY:clean
 clean:
-	@echo "Deleting all compiled files and removing build directory $(BINDIR)"
-	@rm -rf $(BINDIR)
+	@echo "Deleting all compiled files and removing build directory $(BIN_DIR)"
+	@rm -rf $(BIN_DIR)
