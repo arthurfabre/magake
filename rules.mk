@@ -209,10 +209,10 @@ INCLUDES+=$(addprefix -isystem,$(OBJDIR)include/lib)
 # Rules
 #############
 
-# Build a pre-processed header from a source header
+# Build a pre-pre-processed header from a source header
 $(OBJDIR)include/%.h: %.h | $$(@D)/.dirtag
 	@echo "Preprocessing $< into $@"
-	@./pre-process.py $(C_SYMBOLS) $(INCLUDES) $< $@
+	@./cppp.py $(C_SYMBOLS) $(INCLUDES) $< $@
 
 # Make an object file from an asm file
 $(OBJDIR)%.o: %.s | $$(@D)/.dirtag
