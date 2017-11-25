@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Hackery to partially pre-process a C/CPP file (aka pre-pre-process it)
+# Hackery to pre-pre-process a C/CPP header file
 #
 # This only:
 #
@@ -12,6 +12,7 @@
 # and instead prevent files from being included in a loop.
 
 import os
+import sys
 import argparse
 import re
 
@@ -50,6 +51,9 @@ def find_include(line, includes):
 
 # Expand all the #includes that match a known header
 def expand(r, w, includes, past):
+    # Always search current directory of header
+    full_includes = includes + [os.path.dirname(r.name)]
+
     while True:
         line = r.readline()
 
@@ -57,7 +61,7 @@ def expand(r, w, includes, past):
         if line == '':
             break
 
-        path = find_include(line, includes)
+        path = find_include(line, full_includes)
         if path:
             if path not in past:
                 with open(path, 'r') as inc:
@@ -79,13 +83,12 @@ def process(r, w, includes, symbols):
         w.write('#undef %s\n' % sym)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Partly pre-process a header file')
+    parser = argparse.ArgumentParser(description='Pre-pre-process a header file, expanding found #include\'s, and wrapping the file with #define\'s / #undef\'s for provided symbols')
 
-    parser.add_argument('header', nargs='?', type=argparse.FileType('r'))
-    parser.add_argument('output', nargs='?', type=argparse.FileType('w'))
-
-    parser.add_argument('-I', dest='includes', action='append') 
-    parser.add_argument('-D', dest='symbols', action='append') 
+    parser.add_argument('header', type=argparse.FileType('r'), help='Pre-pre-process file header')
+    parser.add_argument('-o', dest='output', type=argparse.FileType('w'), default=sys.stdout, metavar='file', help='Place the output in file (default: stdout)')
+    parser.add_argument('-I', dest='includes', action='append', metavar='dir', help='Add dir to the include search path (directory relative to header is always searched)')
+    parser.add_argument('-D', dest='symbols', action='append', metavar='sym[=val]', help='Define sym as val' )
 
     args = parser.parse_args()
 
