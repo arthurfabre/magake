@@ -102,7 +102,7 @@ endef
 $(call set_default,SRC_DIR,src/)
 
 # Source file extensions
-$(call set_default,SRC_EXT,c s cpp)
+$(call set_default,SRC_EXT,c s cc cpp)
 
 # Path(s) to additional includes
 $(call set_default,INCLUDE_DIRS,)
