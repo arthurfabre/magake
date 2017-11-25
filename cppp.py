@@ -54,8 +54,7 @@ def match_include(line):
 # Returns None if the file couldn't be found, path to file otherwise
 def find_path(name, includes):
     for d in includes:
-        # Whole build system relies on / working, no point in using os.pathsep
-        src_path = d + '/' + name
+        src_path = os.path.join(d, name)
 
         if os.path.isfile(src_path):
             return src_path
@@ -76,18 +75,19 @@ def expand(r, w, includes, past):
     # Always search current directory of header
     full_includes = includes + [os.path.dirname(r.name)]
 
-    while True:
-        line = r.readline()
+    w.write('#line 1 "%s"\n' % r.name)
+    line_no = 0
 
-        # EOF has been reached
-        if line == '':
-            break
+    for line in r:
+        line_no += 1
 
         path = find_include(line, full_includes)
         if path:
             if path not in past:
                 with open(path, 'r') as inc:
                     expand(inc, w, includes, past + [path])
+
+            w.write('#line %d "%s"\n' % (line_no, r.name))
             continue
 
         w.write(line)
