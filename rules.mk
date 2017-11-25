@@ -174,8 +174,8 @@ FIND_DIRS:=$(foreach ext, $(SRC_EXTENSIONS),-o -name '*.$(ext)')
 # Source files
 SOURCES:=$(shell find $(SRC_DIR) $(wordlist 2, $(words $(FIND_DIRS)),$(FIND_DIRS)))
 
-# Library sub directeries we need to pass to the linker
-LIBSUBDIRS:=
+# Library directeries we need to pass to the linker
+LIB_DIRS:=
 
 # Include directories (use isystem to treat the includes as system headers, supressing warnings)
 # TODO - Make this a function instead?
@@ -238,7 +238,7 @@ endef
 
 define _lib_bin
 # Add library dir to search path
-LIBSUBDIRS+= $1/
+LIB_DIRS+= $1/
 
 # Add fudged headers as OBJ dependency so they're not built before we fudge them
 # Order only is sufficient for clean builds, non-clean builds have real dependency info
@@ -315,7 +315,7 @@ $(OBJ_DIR)%.lib: | $$(@D)/.dirtag
 # Make an elf file from all the objects
 $(OBJ_DIR)%.elf: $(OBJECTS)
 	@echo "Linking $^ into $@"
-	@$(LD) $(LD_OPTS) $(addprefix -L,$(LIBSUBDIRS)) $^ $(addprefix -l,$(LIBRARIES)) -o $@
+	@$(LD) $(LD_OPTS) $(addprefix -L,$(LIB_DIRS)) $^ $(addprefix -l,$(LIBRARIES)) -o $@
 
 # Make a hex file from a binary
 $(OBJ_DIR)%.hex: $(OBJ_DIR)%.elf
