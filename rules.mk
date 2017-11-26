@@ -261,8 +261,9 @@ LIB_DIRS+= $1/
 $(OBJECTS): | $(OBJ_DIR)include/$1
 
 # Rule to symlink include dir into the one we actually use
-$(OBJ_DIR)include/$1: $(wildcard $1/$2*.h) | $$$$(@D)/.dirtag
-	ln -s ../../../../$1/$2 $$@
+$(OBJ_DIR)include/$1: | $$$$(@D)/.dirtag
+	@echo "[ LN ]  $$@"
+	$Qln -s ../../../../$1/$2 $$@
 endef
 
 # Expose a binary library
@@ -301,41 +302,41 @@ INCLUDES+=$(addprefix -isystem,$(OBJ_DIR)include/lib)
 
 # Build a pre-pre-processed header from a source header
 $(OBJ_DIR)include/%.h: %.h | $$(@D)/.dirtag
-	@echo "Preprocessing $< into $@"
+	@echo "[CPPP]  $@"
 	$Q$(CPPP) $(SYMBOLS) $(INCLUDES) -M $< -o $@
 
 # Make an object file from an asm file
 $(OBJ_DIR)%.o: %.s | $$(@D)/.dirtag
-	@echo "Compiling $< into $@"
+	@echo "[ AS ]  $@"
 	$Q$(AS) $(AS_OPTS) -o $@ $<
 
 # Make an object file from a C source file, and generate dependecy information.
 $(OBJ_DIR)%.o: %.c | $$(@D)/.dirtag
-	@echo "Compiling $< into $@"
+	@echo "[ CC ]  $@"
 	$Q$(CC) $(C_OPTS) $(DEPENDS_OPTS) $(CC_OPTS) $(SYMBOLS) $(INCLUDES) -c $< -o $@
 
 # Make an object file from a C++ source file, and generate dependecy information.
 # Accept both .cpp and .cc files
 $(OBJ_DIR)%.o: %.cpp | $$(@D)/.dirtag
-	@echo "Compiling $< into $@"
+	@echo "[ CXX]  $@"
 	$Q$(CXX) $(C_OPTS) $(DEPENDS_OPTS) $(CXX_OPTS) $(SYMBOLS) $(INCLUDES) -c $< -o $@
 $(OBJ_DIR)%.o: %.cc | $$(@D)/.dirtag
-	@echo "Compiling $< into $@"
+	@echo "[ CXX]  $@"
 	$Q$(CXX) $(C_OPTS) $(DEPENDS_OPTS) $(CXX_OPTS) $(SYMBOLS) $(INCLUDES) -c $< -o $@
 
 # Partial linking hackery. These are really .o's, but it's easier to have a different extension to keep the rules seperate
 $(OBJ_DIR)%.lib: | $$(@D)/.dirtag
-	@echo "Partially linking $^ into $@"
+	@echo "[ PLD]  $@"
 	$Q$(LD) $(PLD_OPTS) -nostdlib -r $^ -o $@
 
 # Make an elf file from all the objects
 $(OBJ_DIR)%.elf: $(OBJECTS)
-	@echo "Linking $^ into $@"
+	@echo "[ LD ]  $@"
 	$Q$(LD) $(LD_OPTS) $(addprefix -L,$(LIB_DIRS)) $^ $(addprefix -l,$(LIBRARIES)) -o $@
 
 # Make a hex file from a binary
 $(OBJ_DIR)%.hex: $(OBJ_DIR)%.elf
-	@echo "Creating hex $@"
+	@echo "[ HEX]  $@"
 	$Q$(OBJCOPY) $(OBJCOPY_OPTS) -O ihex $^ $@
 
 # Build target
@@ -350,5 +351,5 @@ build: $(OUTPUT)
 # Clean target
 .PHONY:clean
 clean:
-	@echo "Deleting all compiled files and removing build directory $(BIN_DIR)"
+	@echo "[ RM ]  $(BIN_DIR)"
 	$Qrm -rf $(BIN_DIR)
