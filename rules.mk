@@ -98,6 +98,9 @@ endef
 # Verbosity: 1 to enable
 $(call set_default,V,0)
 
+# Path to magake (realtive to the makefile)
+$(call set_default,MM_DIR,$(dir $(lastword $(MAKEFILE_LIST))))
+
 # Path to source directory
 $(call set_default,SRC_DIR,src/)
 
@@ -121,6 +124,9 @@ $(call set_default,LIBRARIES,)
 
 # CrossCompile options
 $(call set_default,CROSS_COMPILE,)
+
+# C pre-pre-processor to use
+$(call set_default,CPPP,./$(MM_DIR)cppp.py)
 
 # C Options. Will be passed to C and C++ compiler
 # TODO - Passed to linker too?
@@ -290,7 +296,7 @@ INCLUDES+=$(addprefix -isystem,$(OBJ_DIR)include/lib)
 # Build a pre-pre-processed header from a source header
 $(OBJ_DIR)include/%.h: %.h | $$(@D)/.dirtag
 	@echo "Preprocessing $< into $@"
-	$Q./cppp.py $(SYMBOLS) $(INCLUDES) $< -o $@
+	$Q$(CPPP) $(SYMBOLS) $(INCLUDES) $< -o $@
 
 # Make an object file from an asm file
 $(OBJ_DIR)%.o: %.s | $$(@D)/.dirtag
