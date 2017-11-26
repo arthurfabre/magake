@@ -53,9 +53,6 @@ export SHELLOPTS:=errexit:pipefail
 # Delete target files on error
 .DELETE_ON_ERROR:
 
-# Don't spawn a seperate shell for every recipe comand
-.ONESHELL:
-
 # Disable built in suffix rules
 .SUFFIXES:
 
@@ -97,6 +94,9 @@ endef
 define set_default
 $(eval $(call _set_default,$1,$2))
 endef
+
+# Verbosity: 1 to enable
+$(call set_default,V,0)
 
 # Path to source directory
 $(call set_default,SRC_DIR,src/)
@@ -153,6 +153,13 @@ $(call set_default,PLD_OPTS,)
 #############
 # Variables
 #############
+
+# Set recipe command prefix based on verbosity
+ifeq ($(strip $V),0)
+  Q:=@
+else
+  Q:=
+endif
 
 # Options to generate dependency information. Passed to C and C++ compiler
 # MD: Generate a file with makefile style dependencies along with the object files
@@ -286,41 +293,41 @@ INCLUDES+=$(addprefix -isystem,$(OBJ_DIR)include/lib)
 # Build a pre-pre-processed header from a source header
 $(OBJ_DIR)include/%.h: %.h | $$(@D)/.dirtag
 	@echo "Preprocessing $< into $@"
-	@./cppp.py $(SYMBOLS) $(INCLUDES) $< -o $@
+	$Q./cppp.py $(SYMBOLS) $(INCLUDES) $< -o $@
 
 # Make an object file from an asm file
 $(OBJ_DIR)%.o: %.s | $$(@D)/.dirtag
 	@echo "Compiling $< into $@"
-	@$(AS) $(AS_OPTS) -o $@ $<
+	$Q$(AS) $(AS_OPTS) -o $@ $<
 
 # Make an object file from a C source file, and generate dependecy information.
 $(OBJ_DIR)%.o: %.c | $$(@D)/.dirtag
 	@echo "Compiling $< into $@"
-	@$(CC) $(C_OPTS) $(DEPENDS_OPTS) $(CC_OPTS) $(SYMBOLS) $(INCLUDES) -c $< -o $@
+	$Q$(CC) $(C_OPTS) $(DEPENDS_OPTS) $(CC_OPTS) $(SYMBOLS) $(INCLUDES) -c $< -o $@
 
 # Make an object file from a C++ source file, and generate dependecy information.
 # Accept both .cpp and .cc files
 $(OBJ_DIR)%.o: %.cpp | $$(@D)/.dirtag
 	@echo "Compiling $< into $@"
-	@$(CXX) $(C_OPTS) $(DEPENDS_OPTS) $(CXX_OPTS) $(SYMBOLS) $(INCLUDES) -c $< -o $@
+	$Q$(CXX) $(C_OPTS) $(DEPENDS_OPTS) $(CXX_OPTS) $(SYMBOLS) $(INCLUDES) -c $< -o $@
 $(OBJ_DIR)%.o: %.cc | $$(@D)/.dirtag
 	@echo "Compiling $< into $@"
-	@$(CXX) $(C_OPTS) $(DEPENDS_OPTS) $(CXX_OPTS) $(SYMBOLS) $(INCLUDES) -c $< -o $@
+	$Q$(CXX) $(C_OPTS) $(DEPENDS_OPTS) $(CXX_OPTS) $(SYMBOLS) $(INCLUDES) -c $< -o $@
 
 # Partial linking hackery. These are really .o's, but it's easier to have a different extension to keep the rules seperate
 $(OBJ_DIR)%.lib: | $$(@D)/.dirtag
 	@echo "Partially linking $^ into $@"
-	@$(PLD) $(PLD_OPTS) -r $^ -o $@
+	$Q$(PLD) $(PLD_OPTS) -r $^ -o $@
 
 # Make an elf file from all the objects
 $(OBJ_DIR)%.elf: $(OBJECTS)
 	@echo "Linking $^ into $@"
-	@$(LD) $(LD_OPTS) $(addprefix -L,$(LIB_DIRS)) $^ $(addprefix -l,$(LIBRARIES)) -o $@
+	$Q$(LD) $(LD_OPTS) $(addprefix -L,$(LIB_DIRS)) $^ $(addprefix -l,$(LIBRARIES)) -o $@
 
 # Make a hex file from a binary
 $(OBJ_DIR)%.hex: $(OBJ_DIR)%.elf
 	@echo "Creating hex $@"
-	@$(OBJCOPY) $(OBJCOPY_OPTS) -O ihex $^ $@
+	$Q$(OBJCOPY) $(OBJCOPY_OPTS) -O ihex $^ $@
 
 # Build target
 # TODO - Get rid of this target
@@ -328,11 +335,11 @@ build: $(OUTPUT)
 
 # Target to create a directory
 %.dirtag:
-	@-mkdir -p $(@D)
-	@touch $@
+	-$Qmkdir -p $(@D)
+	$Qtouch $@
 
 # Clean target
 .PHONY:clean
 clean:
 	@echo "Deleting all compiled files and removing build directory $(BIN_DIR)"
-	@rm -rf $(BIN_DIR)
+	$Qrm -rf $(BIN_DIR)
