@@ -145,9 +145,6 @@ $(call set_default,OBJCOPY_OPTS,)
 # Linker to use
 $(call set_default,LD,$(CROSS_COMPILE)g++)
 $(call set_default,LD_OPTS,)
-
-# Partial linker to use
-$(call set_default,PLD,$(CROSS_COMPILE)ld)
 $(call set_default,PLD_OPTS,)
 
 #############
@@ -317,7 +314,7 @@ $(OBJ_DIR)%.o: %.cc | $$(@D)/.dirtag
 # Partial linking hackery. These are really .o's, but it's easier to have a different extension to keep the rules seperate
 $(OBJ_DIR)%.lib: | $$(@D)/.dirtag
 	@echo "Partially linking $^ into $@"
-	$Q$(PLD) $(PLD_OPTS) -r $^ -o $@
+	$Q$(LD) $(PLD_OPTS) -nostdlib -r $^ -o $@
 
 # Make an elf file from all the objects
 $(OBJ_DIR)%.elf: $(OBJECTS)
