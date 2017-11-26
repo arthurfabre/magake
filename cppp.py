@@ -71,9 +71,11 @@ def find_include(line, includes):
     return find_path(name, includes)
 
 # Expand all the #includes that match a known header
+# Returns list of all files this one depends on
 def expand(r, w, includes, past):
     # Always search current directory of header
     full_includes = includes + [os.path.dirname(r.name)]
+    depends = []
 
     w.write('#line 1 "%s"\n' % r.name)
     line_no = 0
@@ -84,22 +86,30 @@ def expand(r, w, includes, past):
         path = find_include(line, full_includes)
         if path:
             if path not in past:
+                depends.append(path)
                 with open(path, 'r') as inc:
-                    expand(inc, w, includes, past + [path])
+                    depends.extend(expand(inc, w, includes, past + [path]))
 
             w.write('#line %d "%s"\n' % (line_no, r.name))
             continue
 
         w.write(line)
 
-def process(r, w, includes, symbols):
+    return depends
+
+def process(r, w, includes, symbols, d):
     for sym, val in symbols.items():
         if val != '':
             w.write('#define %s %s\n' % (sym, val))
         else:
             w.write('#define %s\n' % sym)
 
-    expand(r, w, includes, [])
+    depends = expand(r, w, includes, [])
+
+    if d:
+        d.write('%s: %s\n\n' % (w.name, ' \\\n '.join(depends)))
+        for dep in depends:
+            d.write("%s:\n\n" % dep)
 
     for sym in symbols:
         w.write('#undef %s\n' % sym)
@@ -109,9 +119,16 @@ if __name__ == "__main__":
 
     parser.add_argument('header', type=argparse.FileType('r'), help='Pre-pre-process file header')
     parser.add_argument('-o', dest='output', type=argparse.FileType('w'), default=sys.stdout, metavar='file', help='Place the output in file (default: stdout)')
-    parser.add_argument('-I', dest='includes', action='append', metavar='dir', help='Add dir to the include search path (directory relative to header is always searched)')
-    parser.add_argument('-D', dest='symbols', action='append', metavar='sym[=val]', help='Define sym as val' )
+    parser.add_argument('-I', dest='includes', action='append', metavar='dir', default=[], help='Add dir to the include search path (directory relative to header is always searched)')
+    parser.add_argument('-D', dest='symbols', action='append', metavar='sym[=val]', default=[], help='Define sym as val')
+    parser.add_argument('-M', dest='depends', action='store_true', help='Generate dependency info that can be used by make. Requires -o. Mimicks \'gcc -MMD -MP\'')
 
     args = parser.parse_args()
 
-    process(args.header, args.output, args.includes, dict((sym.split("=") if '=' in sym else (sym, "")) for sym in args.symbols))
+    # TODO - Requires -o
+    if args.depends:
+        d = open(os.path.splitext(args.output.name)[0] + ".d", "w")
+    else:
+        d = None
+
+    process(args.header, args.output, args.includes, dict((sym.split("=") if '=' in sym else (sym, "")) for sym in args.symbols), d)
