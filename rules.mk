@@ -215,22 +215,28 @@ endif
 # Params: See lib_src
 # Expands to: Lots of junk
 define _lib_src
-# Add lib to lists of things to link
-$(OUTPUT): $(LIB_$1)
+LIB_$1:=$(OBJ_DIR)$1.lib
+LIB_$1_OBJECTS:=$(call objectify,$(addprefix $1/,$2))
+LIB_$1_HEADERS:=$(addprefix $(OBJ_DIR)include/$1/,$4)
 
-# Make lib depend on it's object files and header files
-# Header files are order only so they're not linked
-$(LIB_$1): $(call objectify,$(addprefix $1/,$2)) | $(addprefix $(OBJ_DIR)include/$1/,$4)
+# Add lib to lists of things to link
+$(OUTPUT): $$(LIB_$1)
+
+# Make lib depend on it's object files
+$$(LIB_$1): $$(LIB_$1_OBJECTS)
 
 # Expose private includes only when building lib
-$(LIB_$1): INCLUDES=$(addprefix -I,$1 $(addprefix $1/,$3))
+$$(LIB_$1) $$(LIB_$1_HEADERS): INCLUDES=$(addprefix -I,$1 $(addprefix $1/,$3))
 
 # Define symbols for library build
-$(LIB_$1): SYMBOLS=$(addprefix -D,$5)
+$$(LIB_$1) $$(LIB_$1_HEADERS): SYMBOLS=$(addprefix -D,$5)
 
 # Add fudged headers as OBJ dependency so they're not built before we fudge them
 # Order only is sufficient for clean builds, non-clean builds have real dependency info
-$(OBJECTS): | $(LIB_$1)
+$(OBJECTS): | $$(LIB_$1_HEADERS)
+
+# Include header and source file dependency info
+-include $$(LIB_$1_OBJECTS:.o=.d) $$(LIB_$1_HEADERS:.h=.d)
 endef
 
 # Magic to include / embed a library's source
@@ -242,7 +248,7 @@ endef
 #
 # Expands to the name of the target generated for the library (which can be used to set target-specific overrides for things like C_FLAGS)
 define lib_src
-$(eval LIB_$1:=$(OBJ_DIR)$1.lib)$(LIB_$1)$(eval $(call _lib_src,$1,$2,$3,$4,$5))
+$(eval $(call _lib_src,$1,$2,$3,$4,$5))$(LIB_$1)
 endef
 
 
@@ -296,7 +302,7 @@ INCLUDES+=$(addprefix -isystem,$(OBJ_DIR)include/lib)
 # Build a pre-pre-processed header from a source header
 $(OBJ_DIR)include/%.h: %.h | $$(@D)/.dirtag
 	@echo "Preprocessing $< into $@"
-	$Q$(CPPP) $(SYMBOLS) $(INCLUDES) $< -o $@
+	$Q$(CPPP) $(SYMBOLS) $(INCLUDES) -M $< -o $@
 
 # Make an object file from an asm file
 $(OBJ_DIR)%.o: %.s | $$(@D)/.dirtag
