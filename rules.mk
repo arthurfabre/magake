@@ -66,12 +66,19 @@ MAKEFLAGS+=-r
 .SECONDARY:
 
 #############
+# Helper functions
+#############
+
+# If $1 is in $2, and $2 is in $1 then $1 == $2
+eq=$(and $(findstring $(strip $1),$(strip $2)),$(findstring $(strip $2),$(strip $1)))
+
+#############
 # Settings - Default values
 #############
 
 # Get the default value for a variable, if it has not been set or has a default make definiton.
 # Otherwise get it's assigned value.
-get_default=$(if $(or $(findstring undefined,$(origin $1)),$(findstring default,$(origin $1))),$2,$($1))
+get_default=$(if $(or $(call eq,undefined,$(origin $1)),$(call eq,default,$(origin $1))),$2,$($1))
 
 # Verbosity: 1 to enable
 V:=$(call get_default,V,0)
@@ -133,11 +140,7 @@ PLD_OPTS:=$(call get_default,PLD_OPTS,)
 #############
 
 # Set recipe command prefix based on verbosity
-ifeq ($(strip $V),0)
-  Q:=@
-else
-  Q:=
-endif
+Q:=$(if $(call eq,$V,0),@,)
 
 # Options to generate dependency information. Passed to C and C++ compiler
 # MMD: Generate a .d file with makefile style dependencies for headers in non system locations
@@ -149,9 +152,7 @@ OBJ_DIR:=$(BIN_DIR)$(shell $(CC) -dumpmachine)/
 
 # Get the object name from a set of source files
 # Params: 1: List of source files
-define objectify
-$(addprefix $(OBJ_DIR),$(foreach ext, $(SRC_EXT),$(patsubst %.$(ext),%.o,$(filter %.$(ext),$1))))
-endef
+objectify=$(addprefix $(OBJ_DIR),$(foreach ext, $(SRC_EXT),$(patsubst %.$(ext),%.o,$(filter %.$(ext),$1))))
 
 #############
 # Library support
@@ -186,9 +187,7 @@ endef
 #         5: List of required preprocessor symbols
 #
 # Expands to the name of the target generated for the library (which can be used to set target-specific overrides for things like C_FLAGS)
-define lib_src
-$(eval $(call _lib_src,$1,$2,$3,$4,$5))$(LIB_$1)
-endef
+lib_src=$(eval $(call _lib_src,$1,$2,$3,$4,$5))$(LIB_$1)
 
 
 define _lib_bin
@@ -208,9 +207,7 @@ endef
 #         3: Public include dir to expose
 #
 # Expands to the name of the target generated for the library.
-define lib_bin
-$(eval $(call _lib_bin,$1,$2,$3))$(LIB_$2)
-endef
+lib_bin=$(eval $(call _lib_bin,$1,$2,$3))$(LIB_$2)
 
 #############
 # Target support
@@ -240,9 +237,7 @@ endef
 #         3: Libraries to link in (from src_lib, bin_lib, or -l prefixed)
 #
 # TODO: Symbols, extra includes
-define target
-$(eval $(call _target,$1,$2,$3))$(TARGET_$1)
-endef
+target=$(eval $(call _target,$1,$2,$3))$(TARGET_$1)
 
 #############
 # Rules
