@@ -159,9 +159,9 @@ else
 endif
 
 # Options to generate dependency information. Passed to C and C++ compiler
-# MD: Generate a file with makefile style dependencies along with the object files
+# MMD: Generate a .d file with makefile style dependencies for headers in non system locations
 # MP; Generate bogus empty rules for every dependency so that deleting them doesn't break make
-DEPENDS_OPTS:=-MD -MP
+DEPENDS_OPTS:=-MMD -MP
 
 # Object dir
 OBJ_DIR:=$(BIN_DIR)$(shell $(CC) -dumpmachine)/
