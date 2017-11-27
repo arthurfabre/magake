@@ -62,9 +62,6 @@ MAKEFLAGS+=-r
 # Enable secondary expansion
 .SECONDEXPANSION:
 
-# Set default target
-.DEFAULT_GOAL:=build
-
 # Don't delete intermediate files
 .SECONDARY:
 
@@ -116,9 +113,6 @@ $(call set_default,SYMBOLS,)
 # Object directory. A subdirectory will be created per architecture
 $(call set_default,BIN_DIR,bin/)
 
-# OutputName. @ represents the name of the directory containing this makefile
-$(call set_default,OUTPUT_NAME,@.elf)
-
 # Libraries
 $(call set_default,LIBRARIES,)
 
@@ -167,7 +161,7 @@ endif
 # Options to generate dependency information. Passed to C and C++ compiler
 # MD: Generate a file with makefile style dependencies along with the object files
 # MP; Generate bogus empty rules for every dependency so that deleting them doesn't break make
-DEPENDS_OPTS=-MD -MP
+DEPENDS_OPTS:=-MD -MP
 
 # Object dir
 OBJ_DIR:=$(BIN_DIR)$(shell $(CC) -dumpmachine)/
@@ -178,65 +172,29 @@ define objectify
 $(addprefix $(OBJ_DIR),$(foreach ext, $(SRC_EXT),$(patsubst %.$(ext),%.o,$(filter %.$(ext),$1))))
 endef
 
-# temp variable to store find command syntax 
-FIND_DIRS:=$(foreach ext, $(SRC_EXTENSIONS),-o -name '*.$(ext)')
-
-# Source files
-SOURCES:=$(shell find $(SRC_DIR) $(wordlist 2, $(words $(FIND_DIRS)),$(FIND_DIRS)))
-
-# Library directeries we need to pass to the linker
-LIB_DIRS:=
-
-# Include directories (use isystem to treat the includes as system headers, supressing warnings)
-# TODO - Make this a function instead?
-INCLUDES:=$(addprefix -I,$(SRC_DIR))
-
-# Object files
-OBJECTS:=$(call objectify,$(SOURCES))
-
-# Generated dependecy files to include
-DEPENDS:=$(OBJECTS:.o=.d)
-
-# Name of the directory we're currently in
-CURDIR_NAME:=$(lastword $(subst /, ,$(CURDIR)))
-
-# Name of the final output files
-OUTPUT:=$(OBJ_DIR)$(subst @,$(CURDIR_NAME),$(OUTPUT_NAME))
-
-ifeq ($(strip $(TYPE)),debug)
-  C_OPTS+= -g
-endif
-
 #############
 # Library support
 #############
 
-# Real worker function
+# _lib_src implementation
 # Params: See lib_src
-# Expands to: Lots of junk
+# Output should be eval()'d
 define _lib_src
 LIB_$1:=$(OBJ_DIR)$1.lib
-LIB_$1_OBJECTS:=$(call objectify,$(addprefix $1/,$2))
-LIB_$1_HEADERS:=$(addprefix $(OBJ_DIR)include/$1/,$4)
-
-# Add lib to lists of things to link
-$(OUTPUT): $$(LIB_$1)
+$$(LIB_$1)_OBJECTS:=$(call objectify,$(addprefix $1/,$2))
+$$(LIB_$1)_HEADERS:=$(addprefix $(OBJ_DIR)include/$1/,$4)
 
 # Make lib depend on it's object files
-$$(LIB_$1): $$(LIB_$1_OBJECTS)
+$$(LIB_$1): $$($$(LIB_$1)_OBJECTS)
 
 # Expose private includes only when building lib
-$$(LIB_$1) $$(LIB_$1_HEADERS): INCLUDES=$(addprefix -I,$1 $(addprefix $1/,$3))
+$$(LIB_$1) $$($$(LIB_$1)_HEADERS): INCLUDES=$(addprefix -I,$1 $(addprefix $1/,$3))
 
 # Define symbols for library build
-$$(LIB_$1) $$(LIB_$1_HEADERS): SYMBOLS=$(addprefix -D,$5)
-
-# Add fudged headers as OBJ dependency so they're not built before we fudge them
-# Order only is sufficient for clean builds, non-clean builds have real dependency info
-$(OBJECTS): | $$(LIB_$1_HEADERS)
+$$(LIB_$1) $$($$(LIB_$1)_HEADERS): SYMBOLS=$(addprefix -D,$5)
 
 # Include header and source file dependency info
--include $$(LIB_$1_OBJECTS:.o=.d) $$(LIB_$1_HEADERS:.h=.d)
+-include $$($$(LIB_$1)_OBJECTS:.o=.d) $$($$(LIB_$1)_HEADERS:.h=.d)
 endef
 
 # Magic to include / embed a library's source
@@ -253,48 +211,56 @@ endef
 
 
 define _lib_bin
-# Add library dir to search path
-LIB_DIRS+= $1/
-
-# Add fudged headers as OBJ dependency so they're not built before we fudge them
-# Order only is sufficient for clean builds, non-clean builds have real dependency info
-$(OBJECTS): | $(OBJ_DIR)include/$1
+LIB_$2:=$1/$2
+#LIB_$2_INCDIR:=$1/$3
+$$(LIB_$2)_HEADERS:=$(OBJ_DIR)include/$1
 
 # Rule to symlink include dir into the one we actually use
-$(OBJ_DIR)include/$1: | $$$$(@D)/.dirtag
+$$($$(LIB_$2)_HEADERS): | $$$$(@D)/.dirtag
 	@echo "[ LN ]  $$@"
-	$Qln -s ../../../../$1/$2 $$@
+	$Qln -s ../../../../$1/$3 $$@
 endef
 
 # Expose a binary library
 # Params: 1: Path to toplevel library dir (no trailing slash)
-# 		  2: Public include dir to expose
+#         2: Path to archive (relative to $1)
+#         3: Public include dir to expose
 #
-# NOTE: THis doesn't link it in, add it to $(LIBRARIES) (this allows the rather finicky library linking order to be controlled)
+# Expands to the name of the target generated for the library.
 define lib_bin
-$(eval $(call _lib_bin,$1,$2))
+$(eval $(call _lib_bin,$1,$2,$3))$(LIB_$2)
 endef
 
 #############
-# Includes
+# Target support
 #############
+
+rec_ls=$(foreach f,$(wildcard $1/*),$(if $(findstring .,$f),$f,$(call rec_ls,$f)))
+rec_src=$(filter $2,$(call rec_ls,$1))
+
+define _target
+TARGET_$1:=$(OBJ_DIR)$1
+TARGET_$1_OBJECTS:=$(call objectify,$(call rec_src,$2,%.cpp %.c %.cc))
+
+$$(TARGET_$1): $$(TARGET_$1_OBJECTS) $3
+
+# Need headers for all libs to be built / fudged
+$$(TARGET_$1_OBJECTS): | $(foreach lib,$3,$$($(lib)_HEADERS))
+
+$$(TARGET_$1): INCLUDES:=$(addprefix -I,$2 $(INCLUDE_DIRS)) $(addprefix -isystem,$(OBJ_DIR)include/lib)
 
 # Autogenerated dependency info. Might not exist.
--include $(DEPENDS)
+-include $$(TARGET_$1_OBJECTS:.o=.d)
+endef
 
-INCLUDES+=$(addprefix -isystem,$(OBJ_DIR)include/lib)
-
-#############
-# Debug
-#############
-
-#$(info OUTPUT_NAME=$(OUTPUT_NAME))
-#$(info OBJECTS=$(OBJECTS))
-#$(info SOURCES=$(SOURCES))
-#$(info INCLUDES=$(INCLUDES))
-#$(info DEPENDS=$(DEPENDS))
-#$(info C_OPTS=$(C_OPTS))
-#$(info LIBSUBDIRS=$(LIBSUBDIRS))
+# Params: 1: Output name (relative to OBJ_DIR)
+#         2: Source directory
+#         3: Dependant libs (TODO Support -l)
+#
+# TODO: Symbols, extra includes
+define target
+$(eval $(call _target,$1,$2,$3))$(TARGET_$1)
+endef
 
 #############
 # Rules
@@ -330,18 +296,14 @@ $(OBJ_DIR)%.lib: | $$(@D)/.dirtag
 	$Q$(LD) $(PLD_OPTS) -nostdlib -r $^ -o $@
 
 # Make an elf file from all the objects
-$(OBJ_DIR)%.elf: $(OBJECTS)
+$(OBJ_DIR)%.elf: | $$(@D)/.dirtag
 	@echo "[ LD ]  $@"
-	$Q$(LD) $(LD_OPTS) $(addprefix -L,$(LIB_DIRS)) $^ $(addprefix -l,$(LIBRARIES)) -o $@
+	$Q$(LD) $(LD_OPTS) $^ $(addprefix -l,$(LIBRARIES)) -o $@
 
 # Make a hex file from a binary
 $(OBJ_DIR)%.hex: $(OBJ_DIR)%.elf
 	@echo "[ HEX]  $@"
 	$Q$(OBJCOPY) $(OBJCOPY_OPTS) -O ihex $^ $@
-
-# Build target
-# TODO - Get rid of this target
-build: $(OUTPUT)
 
 # Target to create a directory
 %.dirtag:
