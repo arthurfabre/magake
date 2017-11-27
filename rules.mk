@@ -188,10 +188,10 @@ $$(LIB_$1)_HEADERS:=$(addprefix $(OBJ_DIR)include/$1/,$4)
 $$(LIB_$1): $$($$(LIB_$1)_OBJECTS)
 
 # Expose private includes only when building lib
-$$(LIB_$1) $$($$(LIB_$1)_HEADERS): INCLUDES=$(addprefix -I,$1 $(addprefix $1/,$3))
+$$(LIB_$1) $$($$(LIB_$1)_HEADERS): INCLUDES:=$(addprefix -I,$1 $(addprefix $1/,$3))
 
 # Define symbols for library build
-$$(LIB_$1) $$($$(LIB_$1)_HEADERS): SYMBOLS=$(addprefix -D,$5)
+$$(LIB_$1) $$($$(LIB_$1)_HEADERS): SYMBOLS:=$(addprefix -D,$5)
 
 # Include header and source file dependency info
 -include $$($$(LIB_$1)_OBJECTS:.o=.d) $$($$(LIB_$1)_HEADERS:.h=.d)
