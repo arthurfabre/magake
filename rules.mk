@@ -69,83 +69,64 @@ MAKEFLAGS+=-r
 # Settings - Default values
 #############
 
-# Worker function whose output should be eval()'d
-# See set_default
-define _set_default
-ifndef $1
-  $1:=$2
-else ifeq ($(origin $1),default)
-  $1:=$2
-else
-  $1:=$($1)
-endif
-endef
-
-# Set a var to a default value if it isn't defined,
-# or has a default make definition.
-# Every variable will [re]defined as simply expanded.
-#
-# Params:
-# 		1: Variable name
-# 		2: Default value
-define set_default
-$(eval $(call _set_default,$1,$2))
-endef
+# Get the default value for a variable, if it has not been set or has a default make definiton.
+# Otherwise get it's assigned value.
+get_default=$(if $(or $(findstring undefined,$(origin $1)),$(findstring default,$(origin $1))),$2,$($1))
 
 # Verbosity: 1 to enable
-$(call set_default,V,0)
+V:=$(call get_default,V,0)
 
 # Path to magake (realtive to the makefile)
-$(call set_default,MM_DIR,$(dir $(lastword $(MAKEFILE_LIST))))
+MM_DIR:=$(call get_default,MM_DIR,$(dir $(lastword $(MAKEFILE_LIST))))
 
 # Path to source directory
-$(call set_default,SRC_DIR,src/)
+SRC_DIR:=$(call get_default,SRC_DIR,src/)
 
 # Source file extensions
-$(call set_default,SRC_EXT,c s cc cpp)
+SRC_EXT:=$(call get_default,SRC_EXT,c s cc cpp)
 
 # Path(s) to additional includes
-$(call set_default,INCLUDE_DIRS,)
+INCLUDE_DIRS:=$(call get_default,INCLUDE_DIRS,)
 
 # Additional symbols to define
-$(call set_default,SYMBOLS,)
+SYMBOLS:=$(call get_default,SYMBOLS,)
 
 # Object directory. A subdirectory will be created per architecture
-$(call set_default,BIN_DIR,bin/)
+BIN_DIR:=$(call get_default,BIN_DIR,bin/)
 
 # Libraries
-$(call set_default,LIBRARIES,)
+LIBRARIES:=$(call get_default,LIBRARIES,)
 
 # CrossCompile options
-$(call set_default,CROSS_COMPILE,)
+CROSS_COMPILE:=$(call get_default,CROSS_COMPILE,)
 
 # C pre-pre-processor to use
-$(call set_default,CPPP,./$(MM_DIR)cppp.py)
+CPPP:=$(call get_default,CPPP,./$(MM_DIR)cppp.py)
 
 # C Options. Will be passed to C and C++ compiler
 # TODO - Passed to linker too?
-$(call set_default,C_OPTS,-Wall -O3 -Werror -pedantic)
+C_OPTS:=$(call get_default,C_OPTS,-Wall -O3 -Werror -pedantic)
 
 # ASM compiler to use
-$(call set_default,AS,$(CROSS_COMPILE)gcc -x assembler-with-cpp)
-$(call set_default,AS_OPTS,)
+AS:=$(call get_default,AS,$(CROSS_COMPILE)gcc -x assembler-with-cpp)
+AS_OPTS:=$(call get_default,AS_OPTS,)
 
 # C Compiler to use
-$(call set_default,CC,$(CROSS_COMPILE)gcc)
-$(call set_default,CC_OPTS,-std=c11)
+CC:=$(call get_default,CC,$(CROSS_COMPILE)gcc)
+CC_OPTS:=$(call get_default,CC_OPTS,-std=c11)
 
 # C++ Compiler to use
-$(call set_default,CXX,$(CROSS_COMPILE)g++)
-$(call set_default,CXX_OPTS,-std=c++14)
+CXX:=$(call get_default,CXX,$(CROSS_COMPILE)g++)
+CXX_OPTS:=$(call get_default,CXX_OPTS,-std=c++14)
 
 # Objcopy to use
-$(call set_default,OBJCOPY,$(CROSS_COMPILE)objcopy)
-$(call set_default,OBJCOPY_OPTS,)
+OBJCOPY:=$(call get_default,OBJCOPY,$(CROSS_COMPILE)objcopy)
+OBJCOPY_OPTS:=$(call get_default,OBJCOPY_OPTS,)
 
 # Linker to use
-$(call set_default,LD,$(CROSS_COMPILE)g++)
-$(call set_default,LD_OPTS,)
-$(call set_default,PLD_OPTS,)
+LD:=$(call get_default,LD,$(CROSS_COMPILE)g++)
+LD_OPTS:=$(call get_default,LD_OPTS,)
+PLD_OPTS:=$(call get_default,PLD_OPTS,)
 
 #############
 # Variables
