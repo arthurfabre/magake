@@ -242,7 +242,8 @@ define _target
 TARGET_$1:=$(OBJ_DIR)$1
 TARGET_$1_OBJECTS:=$(call objectify,$(call rec_src,$2,%.cpp %.c %.cc))
 
-$$(TARGET_$1): $$(TARGET_$1_OBJECTS) $3
+$$(TARGET_$1): $$(TARGET_$1_OBJECTS) $(filter-out -l%,$3)
+$$(TARGET_$1): LIBRARIES:=$(filter -l%,$3)
 
 # Need headers for all libs to be built / fudged
 $$(TARGET_$1_OBJECTS): | $(foreach lib,$3,$$($(lib)_HEADERS))
@@ -255,7 +256,7 @@ endef
 
 # Params: 1: Output name (relative to OBJ_DIR)
 #         2: Source directory
-#         3: Dependant libs (TODO Support -l)
+#         3: Libraries to link in (from src_lib, bin_lib, or -l prefixed)
 #
 # TODO: Symbols, extra includes
 define target
@@ -298,7 +299,7 @@ $(OBJ_DIR)%.lib: | $$(@D)/.dirtag
 # Make an elf file from all the objects
 $(OBJ_DIR)%.elf: | $$(@D)/.dirtag
 	@echo "[ LD ]  $@"
-	$Q$(LD) $(LD_OPTS) $^ $(addprefix -l,$(LIBRARIES)) -o $@
+	$Q$(LD) $(LD_OPTS) $^ $(LIBRARIES) -o $@
 
 # Make a hex file from a binary
 $(OBJ_DIR)%.hex: $(OBJ_DIR)%.elf
