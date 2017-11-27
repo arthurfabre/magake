@@ -196,7 +196,7 @@ LIB_$2:=$1/$2
 $$(LIB_$2)_HEADERS:=$(OBJ_DIR)include/$1
 
 # Rule to symlink include dir into the one we actually use
-$$($$(LIB_$2)_HEADERS): | $$$$(@D)/.dirtag
+$$($$(LIB_$2)_HEADERS): | $$$$(@D)/
 	@echo "[ LN ]  $$@"
 	$Qln -s ../../../../$1/$3 $$@
 endef
@@ -244,36 +244,36 @@ target=$(eval $(call _target,$1,$2,$3))$(TARGET_$1)
 #############
 
 # Build a pre-pre-processed header from a source header
-$(OBJ_DIR)include/%.h: %.h | $$(@D)/.dirtag
+$(OBJ_DIR)include/%.h: %.h | $$(@D)/
 	@echo "[CPPP]  $@"
 	$Q$(CPPP) $(SYMBOLS) $(INCLUDES) -M $< -o $@
 
 # Make an object file from an asm file
-$(OBJ_DIR)%.o: %.s | $$(@D)/.dirtag
+$(OBJ_DIR)%.o: %.s | $$(@D)/
 	@echo "[ AS ]  $@"
 	$Q$(AS) $(AS_OPTS) -o $@ $<
 
 # Make an object file from a C source file, and generate dependecy information.
-$(OBJ_DIR)%.o: %.c | $$(@D)/.dirtag
+$(OBJ_DIR)%.o: %.c | $$(@D)/
 	@echo "[ CC ]  $@"
 	$Q$(CC) $(C_OPTS) $(DEPENDS_OPTS) $(CC_OPTS) $(SYMBOLS) $(INCLUDES) -c $< -o $@
 
 # Make an object file from a C++ source file, and generate dependecy information.
 # Accept both .cpp and .cc files
-$(OBJ_DIR)%.o: %.cpp | $$(@D)/.dirtag
+$(OBJ_DIR)%.o: %.cpp | $$(@D)/
 	@echo "[ CXX]  $@"
 	$Q$(CXX) $(C_OPTS) $(DEPENDS_OPTS) $(CXX_OPTS) $(SYMBOLS) $(INCLUDES) -c $< -o $@
-$(OBJ_DIR)%.o: %.cc | $$(@D)/.dirtag
+$(OBJ_DIR)%.o: %.cc | $$(@D)/
 	@echo "[ CXX]  $@"
 	$Q$(CXX) $(C_OPTS) $(DEPENDS_OPTS) $(CXX_OPTS) $(SYMBOLS) $(INCLUDES) -c $< -o $@
 
 # Partial linking hackery. These are really .o's, but it's easier to have a different extension to keep the rules seperate
-$(OBJ_DIR)%.lib: | $$(@D)/.dirtag
+$(OBJ_DIR)%.lib: | $$(@D)/
 	@echo "[ PLD]  $@"
 	$Q$(LD) $(PLD_OPTS) -nostdlib -r $^ -o $@
 
 # Make an elf file from all the objects
-$(OBJ_DIR)%.elf: | $$(@D)/.dirtag
+$(OBJ_DIR)%.elf: | $$(@D)/
 	@echo "[ LD ]  $@"
 	$Q$(LD) $(LD_OPTS) $^ $(LIBRARIES) -o $@
 
@@ -283,9 +283,8 @@ $(OBJ_DIR)%.hex: $(OBJ_DIR)%.elf
 	$Q$(OBJCOPY) $(OBJCOPY_OPTS) -O ihex $^ $@
 
 # Target to create a directory
-%.dirtag:
-	-$Qmkdir -p $(@D)
-	$Qtouch $@
+%/:
+	-$Qmkdir -p $@
 
 # Clean target
 .PHONY:clean
