@@ -69,8 +69,15 @@ MAKEFLAGS+=-r
 # Helper functions
 #############
 
+empty:=
+space:=$(empty) $(empty)
+
 # If $1 is in $2, and $2 is in $1 then $1 == $2
 eq=$(and $(findstring $(strip $1),$(strip $2)),$(findstring $(strip $2),$(strip $1)))
+
+# Get a relative path from $1, to the root dir (current directory of make)
+# Will have a trailing slash IFF $1 has one
+root_path=$(subst $(space),,$(patsubst %/,../,$(subst /,/ ,$1)))
 
 #############
 # Settings - Default values
@@ -240,9 +247,9 @@ target=$(eval $(call _target,$1,$2,$3))$(TARGET_$1)
 
 # bin_lib: Symlink include dir into the one we actually use
 $(OBJ_DIR)include/.%.inctag: | $$(@D)/
-	@echo "[ LN ]  $@"
-	touch $@
-	ln -s ../../../../$* $(OBJ_DIR)include/$*
+	@echo "[ LN ]  $(OBJ_DIR)include/$*"
+	$Qtouch $@
+	$Qln -s $(call root_path,$(dir $(OBJ_DIR)include/$*))$* $(OBJ_DIR)include/$*
 
 # src_lib: Build a pre-pre-processed header from a source header
 $(OBJ_DIR)include/%.h: %.h | $$(@D)/
