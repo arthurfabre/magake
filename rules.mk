@@ -193,12 +193,7 @@ lib_src=$(eval $(call _lib_src,$1,$2,$3,$4,$5))$(LIB_$1)
 define _lib_bin
 LIB_$2:=$1/$2
 #LIB_$2_INCDIR:=$1/$3
-$$(LIB_$2)_HEADERS:=$(OBJ_DIR)include/$1
-
-# Rule to symlink include dir into the one we actually use
-$$($$(LIB_$2)_HEADERS): | $$$$(@D)/
-	@echo "[ LN ]  $$@"
-	$Qln -s ../../../../$1/$3 $$@
+$$(LIB_$2)_HEADERS:=$(OBJ_DIR)include/.$1.inctag
 endef
 
 # Expose a binary library
@@ -243,7 +238,13 @@ target=$(eval $(call _target,$1,$2,$3))$(TARGET_$1)
 # Rules
 #############
 
-# Build a pre-pre-processed header from a source header
+# bin_lib: Symlink include dir into the one we actually use
+$(OBJ_DIR)include/.%.inctag: | $$(@D)/
+	@echo "[ LN ]  $@"
+	touch $@
+	ln -s ../../../../$* $(OBJ_DIR)include/$*
+
+# src_lib: Build a pre-pre-processed header from a source header
 $(OBJ_DIR)include/%.h: %.h | $$(@D)/
 	@echo "[CPPP]  $@"
 	$Q$(CPPP) $(SYMBOLS) $(INCLUDES) -M $< -o $@
