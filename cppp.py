@@ -97,7 +97,7 @@ def expand(r, w, includes, past):
 
     return depends
 
-def process(r, w, includes, symbols, d):
+def process(r, w, includes, symbols, d, phony):
     for sym, val in symbols.items():
         if val != '':
             w.write('#define %s %s\n' % (sym, val))
@@ -108,6 +108,7 @@ def process(r, w, includes, symbols, d):
 
     if d:
         d.write('%s: %s\n\n' % (w.name, ' \\\n '.join(depends)))
+    if d and phony:
         for dep in depends:
             d.write("%s:\n\n" % dep)
 
@@ -121,14 +122,21 @@ if __name__ == "__main__":
     parser.add_argument('-o', dest='output', type=argparse.FileType('w'), default=sys.stdout, metavar='file', help='Place the output in file (default: stdout)')
     parser.add_argument('-I', dest='includes', action='append', metavar='dir', default=[], help='Add dir to the include search path (directory relative to header is always searched)')
     parser.add_argument('-D', dest='symbols', action='append', metavar='sym[=val]', default=[], help='Define sym as val')
-    parser.add_argument('-M', dest='depends', action='store_true', help='Generate dependency info that can be used by make. Requires -o. Mimicks \'gcc -MMD -MP\'')
+    parser.add_argument('-MD', '-MMD', dest='depends', action='store_true', help='Generate dependency info that can be used by make, only for #includes found in includes. Requires -o or -MF')
+    parser.add_argument('-MF', dest='depends_out', type=argparse.FileType('w'), metavar='file', help='Write dependency info to file instead of -o .d')
+    parser.add_argument('-MP', dest='depends_phony', action='store_true', help='Generate phony targets for every dependency')
 
     args = parser.parse_args()
 
-    # TODO - Requires -o
     if args.depends:
-        d = open(os.path.splitext(args.output.name)[0] + ".d", "w")
+        if args.depends_out:
+            d = args.depends_out
+        elif args.output:
+            d = open(os.path.splitext(args.output.name)[0] + ".d", "w")
+        else:
+            print("-MD / -MMD requires -o or -MF")
+            sys.exit(os.EX_USAGE)
     else:
         d = None
 
-    process(args.header, args.output, args.includes, dict((sym.split("=") if '=' in sym else (sym, "")) for sym in args.symbols), d)
+    process(args.header, args.output, args.includes, dict((sym.split("=") if '=' in sym else (sym, "")) for sym in args.symbols), d, args.depends_phony)
