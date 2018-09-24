@@ -71,13 +71,20 @@ def find_include(line, includes):
     return find_path(name, includes)
 
 # Expand all the #includes that match a known header
+# r: File to read from
+# w: File to write to
+# includes: List of include directories
+# past: List of includes we've already expanded
+# marker: Format string for printing line markers
+# rel_path: Use paths relative to rel_path for markers
 # Returns list of all files this one depends on
-def expand(r, w, includes, past):
+def expand(r, w, includes, past, marker, rel_path):
     # Always search current directory of header
     full_includes = includes + [os.path.dirname(r.name)]
     depends = []
+    name = os.path.relpath(r.name, rel_path)
 
-    w.write('#line 1 "%s"\n' % r.name)
+    w.write((marker + "\n").format(line=1, file=name))
     line_no = 0
 
     for line in r:
@@ -88,23 +95,22 @@ def expand(r, w, includes, past):
             if path not in past:
                 depends.append(path)
                 with open(path, 'r') as inc:
-                    depends.extend(expand(inc, w, includes, past + [path]))
-
-            w.write('#line %d "%s"\n' % (line_no, r.name))
+                    depends.extend(expand(inc, w, includes, past + [path], marker, rel_path))
+            w.write((marker + "\n").format(line=line_no, file=name))
             continue
 
         w.write(line)
 
     return depends
 
-def process(r, w, includes, symbols, d, phony):
+def process(r, w, includes, symbols, d, phony, marker, rel_path):
     for sym, val in symbols.items():
         if val != '':
             w.write('#define %s %s\n' % (sym, val))
         else:
             w.write('#define %s\n' % sym)
 
-    depends = expand(r, w, includes, [])
+    depends = expand(r, w, includes, [], marker, rel_path)
 
     if d:
         d.write('%s: %s\n\n' % (w.name, ' \\\n '.join(depends)))
@@ -125,6 +131,8 @@ if __name__ == "__main__":
     parser.add_argument('-MD', '-MMD', dest='depends', action='store_true', help='Generate dependency info that can be used by make, only for #includes found in includes. Requires -o or -MF')
     parser.add_argument('-MF', dest='depends_out', type=argparse.FileType('w'), metavar='file', help='Write dependency info to file instead of -o .d')
     parser.add_argument('-MP', dest='depends_phony', action='store_true', help='Generate phony targets for every dependency')
+    parser.add_argument('-m', dest='marker', type=str, default="#line {line} {file}", help='Format string for line markers. Blank to omit markers. Defaults to C pre-processor line markers')
+    parser.add_argument('-r', dest='rel_path', metavar='path', default=os.sep, help='Use a path relative to path in the line / file markers')
 
     args = parser.parse_args()
 
@@ -139,4 +147,4 @@ if __name__ == "__main__":
     else:
         d = None
 
-    process(args.header, args.output, args.includes, dict((sym.split("=") if '=' in sym else (sym, "")) for sym in args.symbols), d, args.depends_phony)
+    process(args.header, args.output, args.includes, dict((sym.split("=") if '=' in sym else (sym, "")) for sym in args.symbols), d, args.depends_phony, args.marker, args.rel_path)
